@@ -148,6 +148,10 @@ main(void)
   static char buf[100];
   int fd;
 
+ printf("\n---------------------------\n");
+  printf("   Bienvenido a EAFITos\n");
+  printf("---------------------------\n\n");
+
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
     if(fd >= 3){
