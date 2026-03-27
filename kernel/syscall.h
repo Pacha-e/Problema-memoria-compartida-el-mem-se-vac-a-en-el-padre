@@ -22,3 +22,6 @@
 #define SYS_close  21
 #define SYS_date  22
 #define SYS_halt  23
+#define SYS_setshared  24
+#define SYS_getshm 25
+#define SYS_setshm 26

@@ -10,6 +10,7 @@ main(void)
     printf(" - tiempo\n");
     printf(" - calc <num1> <operador> <num2>\n");
     printf(" - ayuda\n");
+    printf(" - sharedtest\n");
     printf(" - salir\n");
 
     exit(0);

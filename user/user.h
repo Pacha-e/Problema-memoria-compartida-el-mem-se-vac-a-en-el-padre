@@ -26,7 +26,10 @@ int pause(int);
 int uptime(void);
 struct rtcdate;
 int date(struct rtcdate *);
-int halt(void); 
+int halt(void);
+int setshared(void);
+int setshm(void);
+uint64 getshm(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -44,3 +44,6 @@ entry("pause");
 entry("uptime");
 entry("date");
 entry("halt");
+entry("setshared");
+entry("getshm");
+entry("setshm");

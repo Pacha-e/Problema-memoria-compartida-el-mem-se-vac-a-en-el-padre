@@ -103,6 +103,8 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_date(void);
 extern uint64 sys_halt(void);
+extern uint64 sys_setshm(void);
+extern uint64 sys_getshm(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -130,6 +132,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_date]   sys_date,
 [SYS_halt]    sys_halt,
+[SYS_getshm] sys_getshm,
+[SYS_setshm] sys_setshm,
 };
 
 void

@@ -149,3 +149,23 @@ sys_halt(void)
   
   return 0;
 }
+
+
+uint64
+sys_setshm(void)
+{
+  struct proc *p = myproc();
+  p->usar_memoria_compartida = 1;
+  return 0;
+}
+
+uint64
+sys_getshm(void)
+{
+  struct proc *p = myproc();
+
+  if(p->usar_memoria_compartida)
+    return p->shm_va;
+
+  return 0;
+}

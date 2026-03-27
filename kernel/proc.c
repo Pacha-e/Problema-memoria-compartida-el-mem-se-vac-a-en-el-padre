@@ -5,6 +5,11 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "crear_memoria_compartida.h"
+
+extern int refcount;
+extern char *shared_page;
+extern struct spinlock shm_lock;
 
 struct cpu cpus[NCPU];
 
@@ -158,8 +163,28 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-  if(p->pagetable)
-    proc_freepagetable(p->pagetable, p->sz);
+if(p->pagetable){
+
+  if(p->usar_memoria_compartida){
+
+    acquire(&shm_lock);
+
+    refcount--;
+
+    // usar la dirección del proceso
+    uvmunmap(p->pagetable, p->shm_va, 1, 0);
+
+    if(refcount == 0){
+        kfree(shared_page);
+        shared_page = 0;
+    }
+
+    release(&shm_lock);
+  }
+
+  proc_freepagetable(p->pagetable, p->sz);
+}
+
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -168,6 +193,8 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->usar_memoria_compartida = 0;
+  p->shm_va = 0;
   p->state = UNUSED;
 }
 
@@ -299,8 +326,13 @@ kfork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+   if(p->usar_memoria_compartida){
+      crear_memoria_compartida(p, np);
+      np->usar_memoria_compartida = 1;
+  }
   np->state = RUNNABLE;
   release(&np->lock);
+
 
   return pid;
 }
