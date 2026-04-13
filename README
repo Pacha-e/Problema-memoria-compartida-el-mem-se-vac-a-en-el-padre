@@ -1,51 +1,58 @@
-# 🧠 Memoria Compartida en xv6 - Problema de Consistencia
+# Proyecto 2 — Memoria Compartida en xv6-riscv
 
-## 👨‍💻 Autor
+## Sistemas Operativos
 
-Emmanuel Hernández
+**Autor:** Emmanuel Hernández
 
 ---
 
-## 📌 Descripción del Proyecto
+## Descripción del Proyecto
 
 Este proyecto implementa un mecanismo de **memoria compartida en el sistema operativo xv6 (RISC-V)**, permitiendo que un proceso padre y su proceso hijo compartan una misma página de memoria física.
 
 La implementación incluye:
 
 * Creación de memoria compartida en el kernel
-* Mapeo de la misma página en ambos procesos
-* Uso de llamadas al sistema personalizadas
+* Mapeo de la misma página física en ambos procesos (padre e hijo)
+* Llamadas al sistema personalizadas (`setshm`, `getshm`)
 * Programa de usuario para validación (`sharedtest`)
 
 ---
 
-## ⚙️ Funcionalidad Implementada
+## Archivos Modificados / Creados
 
-### 🔹 Memoria compartida en kernel
-
-Archivo:
-
-```
-kernel/crear_memoria_compartida.c
-```
-
-Se implementa:
-
-* Reserva de una página física (`kalloc`)
-* Uso de `mappages` para mapear la misma dirección física en padre e hijo
-* Uso de `spinlock` y `refcount` para control
+| Archivo | Descripción |
+|---------|-------------|
+| `kernel/crear_memoria_compartida.c` | Lógica principal: reserva página física, mapea en ambos procesos |
+| `kernel/crear_memoria_compartida.h` | Header con prototipos y variables externas |
+| `kernel/proc.c` | Modificación de `fork()` para propagar memoria compartida, y `freeproc()` para liberarla |
+| `kernel/proc.h` | Campos `shm_va` y `usar_memoria_compartida` en `struct proc` |
+| `kernel/sysproc.c` | Implementación de `sys_setshm()` y `sys_getshm()` |
+| `kernel/syscall.c` | Registro de las nuevas syscalls |
+| `kernel/syscall.h` | Números de syscall (`SYS_getshm`, `SYS_setshm`) |
+| `kernel/spinlock.h` | Include guard agregado |
+| `user/sharedtest.c` | Programa de prueba de memoria compartida |
+| `user/user.h` | Prototipos de `setshm()` y `getshm()` |
+| `user/usys.pl` | Entradas para generar stubs de syscalls |
+| `Makefile` | Compilación de `crear_memoria_compartida.o` y `sharedtest` |
 
 ---
 
-### 🔹 Modificación de `fork()`
+## Funcionalidad Implementada
 
-Archivo:
+### Memoria compartida en kernel
 
-```
-kernel/proc.c
-```
+**Archivo:** `kernel/crear_memoria_compartida.c`
 
-Se modifica `kfork()` para:
+* Reserva de una página física con `kalloc()`
+* Uso de `mappages()` para mapear la misma dirección física en padre e hijo
+* Control de concurrencia con `spinlock` y `refcount`
+
+### Modificación de `fork()`
+
+**Archivo:** `kernel/proc.c`
+
+Se modifica `kfork()` para propagar la memoria compartida al hijo:
 
 ```c
 if(p->usar_memoria_compartida){
@@ -54,92 +61,75 @@ if(p->usar_memoria_compartida){
 }
 ```
 
-Esto permite que la memoria compartida solo se active cuando el proceso lo indique.
-
----
-
-### 🔹 Syscalls implementadas
-
-Archivos:
-
-```
-kernel/sysproc.c
-kernel/syscall.c
-kernel/syscall.h
-user/user.h
-```
-
-Se agregan:
+### Syscalls implementadas
 
 ```c
-setshm()   // activa memoria compartida
-getshm()   // retorna dirección virtual compartida
+setshm()   // activa memoria compartida en el proceso actual
+getshm()   // retorna la dirección virtual de la página compartida
+```
+
+### Programa de prueba
+
+**Archivo:** `user/sharedtest.c`
+
+* El padre activa memoria compartida con `setshm()`
+* Hace `fork()` — el hijo hereda la página compartida
+* El padre escribe `"Hola"` en la memoria
+* El hijo lee desde la misma dirección
+
+---
+
+## Compilación y Ejecución
+
+```bash
+make qemu
+```
+
+Dentro de xv6:
+
+```
+$ sharedtest
 ```
 
 ---
 
-### 🔹 Programa de prueba
-
-Archivo:
-
-```
-user/sharedtest.c
-```
-
-Permite:
-
-* Crear un fork
-* Escribir en memoria desde el padre
-* Leer desde el hijo
-* Mostrar direcciones virtuales
-
----
-
-## 🧪 Resultado Actual
+## Resultado Observado
 
 Salida típica:
 
 ```
+PADRE (3) addr: 0x0000000000004000
+PADRE (3) escribió: Hola
 HIJO (4) addr: 0x0000000000004000
 HIJO (4) lee: Hola
 PADRE (3) addr: 0x0000000000004000
+PADRE (3) escribió: Hola
+PADRE (3) final: Hola (addr: 0x0000000000004000)
+```
+
+---
+
+## Problema de Consistencia Detectado
+
+En algunas ejecuciones, el padre **no siempre ve el contenido escrito en memoria**, mostrando cadenas vacías:
+
+```
 PADRE (3) escribió:
 PADRE (3) final:
 ```
 
----
+Mientras que el hijo sí puede leer correctamente.
 
-## ⚠️ Problema Detectado
+### Hipótesis
 
-Aunque ambos procesos comparten la misma dirección virtual:
-
-```
-0x0000000000004000
-```
-
-y el hijo puede leer correctamente:
-
-```
-Hola
-```
-
-el padre **no siempre ve el contenido escrito en memoria**, mostrando cadenas vacías.
+* Falta de sincronización entre procesos (orden de ejecución del scheduler)
+* Posible interacción con la copia de pagetable en `fork()`
+* El `uvmcopy()` dentro de `fork()` puede estar sobrescribiendo el mapeo compartido
 
 ---
 
-## 🧩 Hipótesis del Problema
+## Notas
 
-Posibles causas:
-
-* Falta de sincronización entre procesos (orden de ejecución)
-* Problemas de consistencia en memoria compartida
-* Interacción con el scheduler de xv6
-* Posible error en manejo de `pagetable` o liberación (`freeproc`)
-
----
-
-## 📌 Notas adicionales
-
-* La dirección virtual compartida se asigna dinámicamente (no hardcodeada)
-* Se utiliza `refcount` para manejo de la memoria
-* No se implementa aún liberación completa segura
+* La dirección virtual compartida se asigna dinámicamente con `PGROUNDUP(p->sz)`
+* Se utiliza `refcount` para liberar la página solo cuando ambos procesos terminan
+* El `spinlock` protege el acceso concurrente a la página compartida
