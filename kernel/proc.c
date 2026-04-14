@@ -165,13 +165,13 @@ freeproc(struct proc *p)
   p->trapframe = 0;
 if(p->pagetable){
 
-  if(p->usar_memoria_compartida){
+  if(p->usar_memoria_compartida && p->shm_va != 0){
 
     acquire(&shm_lock);
 
     refcount--;
 
-    // usar la dirección del proceso
+    // desmapear sin liberar la pagina fisica (do_free=0)
     uvmunmap(p->pagetable, p->shm_va, 1, 0);
 
     if(refcount == 0){
@@ -180,6 +180,12 @@ if(p->pagetable){
     }
 
     release(&shm_lock);
+  }
+
+  // limpiar la pagina de solo lectura si se mapeo con map_ro
+  if(p->map_ro_va){
+    uvmunmap(p->pagetable, p->map_ro_va, 1, 1);
+    p->map_ro_va = 0;
   }
 
   proc_freepagetable(p->pagetable, p->sz);
@@ -195,6 +201,7 @@ if(p->pagetable){
   p->xstate = 0;
   p->usar_memoria_compartida = 0;
   p->shm_va = 0;
+  p->trace_mask = 0;
   p->state = UNUSED;
 }
 
@@ -316,6 +323,8 @@ kfork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  np->trace_mask = p->trace_mask;
 
   pid = np->pid;
 

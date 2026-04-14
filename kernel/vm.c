@@ -49,7 +49,7 @@ kvmmake(void)
 
   // allocate and map a kernel stack for each process.
   proc_mapstacks(kpgtbl);
-  
+
   return kpgtbl;
 }
 
@@ -158,7 +158,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 
   if(size == 0)
     panic("mappages: size");
-  
+
   a = va;
   last = va + size - PGSIZE;
   for(;;){
@@ -202,7 +202,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0) // leaf page table entry allocated?
-      continue;   
+      continue;
     if((*pte & PTE_V) == 0)  // has physical page been allocated?
       continue;
     if(do_free){
@@ -331,7 +331,7 @@ void
 uvmclear(pagetable_t pagetable, uint64 va)
 {
   pte_t *pte;
-  
+
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     panic("uvmclear");
@@ -351,7 +351,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     if(va0 >= MAXVA)
       return -1;
-  
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0) {
       if((pa0 = vmfault(pagetable, va0, 0)) == 0) {
@@ -363,7 +363,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     // forbid copyout over read-only user text pages.
     if((*pte & PTE_W) == 0)
       return -1;
-      
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -485,4 +485,52 @@ ismapped(pagetable_t pagetable, uint64 va)
     return 1;
   }
   return 0;
+}
+
+// Recorre e imprime la page table Sv39 de 3 niveles
+void
+vmprint(pagetable_t pagetable)
+{
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      uint64 pa = PTE2PA(pte);
+      printf("..%d: pte 0x%lx pa 0x%lx [%s%s%s%s]\n",
+        i, pte, pa,
+        (pte & PTE_R) ? "R" : "-",
+        (pte & PTE_W) ? "W" : "-",
+        (pte & PTE_X) ? "X" : "-",
+        (pte & PTE_U) ? "U" : "-");
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
+        pagetable_t level1 = (pagetable_t)pa;
+        for(int j = 0; j < 512; j++){
+          pte_t pte1 = level1[j];
+          if(pte1 & PTE_V){
+            uint64 pa1 = PTE2PA(pte1);
+            printf(".. ..%d: pte 0x%lx pa 0x%lx [%s%s%s%s]\n",
+              j, pte1, pa1,
+              (pte1 & PTE_R) ? "R" : "-",
+              (pte1 & PTE_W) ? "W" : "-",
+              (pte1 & PTE_X) ? "X" : "-",
+              (pte1 & PTE_U) ? "U" : "-");
+            if((pte1 & (PTE_R|PTE_W|PTE_X)) == 0){
+              pagetable_t level0 = (pagetable_t)pa1;
+              for(int k = 0; k < 512; k++){
+                pte_t pte0 = level0[k];
+                if(pte0 & PTE_V){
+                  uint64 pa0 = PTE2PA(pte0);
+                  printf(".. .. ..%d: pte 0x%lx pa 0x%lx [%s%s%s%s]\n",
+                    k, pte0, pa0,
+                    (pte0 & PTE_R) ? "R" : "-",
+                    (pte0 & PTE_W) ? "W" : "-",
+                    (pte0 & PTE_X) ? "X" : "-",
+                    (pte0 & PTE_U) ? "U" : "-");
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
